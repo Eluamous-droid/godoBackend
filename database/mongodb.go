@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -51,6 +52,31 @@ func GetAllItems() []models.TodoItem {
 
 }
 
+func GetAllItemsInGroup(group string) []models.TodoItem {
+	initClient()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	collection := client.Database("todoApp").Collection("todoItems")
+	defer cleanUp()
+
+	filter := bson.D{primitive.E{Key: "group", Value: group}}
+	cursor, err := collection.Find(ctx, filter)
+	if err != nil {
+		panic(err)
+	}
+	defer cursor.Close(ctx)
+	var items []models.TodoItem
+	for cursor.Next(ctx) {
+		var item models.TodoItem
+		if err := cursor.Decode(&item); err != nil {
+			panic(err)
+		}
+		items = append(items, item)
+	}
+	return items
+
+}
 func AddItem(item models.TodoItem) {
 
 	initClient()
@@ -60,4 +86,32 @@ func AddItem(item models.TodoItem) {
 	defer cleanUp()
 
 	collection.InsertOne(ctx, item)
+}
+
+func DeleteItem(taskId string) {
+
+	initClient()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	collection := client.Database("todoApp").Collection("todoItems")
+	defer cleanUp()
+
+	filter := bson.D{primitive.E{Key: "id", Value: taskId}}
+	_, err := collection.DeleteOne(ctx, filter)
+	if err != nil {
+		panic(err)
+	}
+
+}
+
+func MarkItemComplete(taskId string) {
+
+	initClient()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	collection := client.Database("todoApp").Collection("todoItems")
+	defer cleanUp()
+	filter := bson.D{primitive.E{Key: "id", Value: taskId}}
+	update := bson.D{primitive.E{Key: "status", Value: models.Done}}
+	collection.UpdateOne(ctx, filter, update)
 }
