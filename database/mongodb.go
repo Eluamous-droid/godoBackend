@@ -10,26 +10,28 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-var collection *mongo.Collection
-var ctx = context.TODO()
+var client *mongo.Client
 
-func getCollection() {
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://root:example@localhost:27017"))
+func initClient() {
+	var err error
+	client, err = mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://root:example@localhost:27017"))
 	if err != nil {
 		panic(err)
 	}
-	collection = client.Database("todoApp").Collection("todoItems")
 }
 
 func cleanUp() {
-	if err := collection.Database().Client().Disconnect(ctx); err != nil {
+	if err := client.Disconnect(context.TODO()); err != nil {
 		panic(err)
 	}
 }
 
 func GetAllItems() []models.TodoItem {
-	getCollection()
+	initClient()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	collection := client.Database("todoApp").Collection("todoItems")
 	defer cleanUp()
 
 	cursor, err := collection.Find(ctx, bson.D{})
@@ -51,16 +53,11 @@ func GetAllItems() []models.TodoItem {
 
 func AddItem(item models.TodoItem) {
 
+	initClient()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
 	defer cancel()
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://root:example@localhost:27017"))
-
-	defer func() {
-		if err = client.Disconnect(ctx); err != nil {
-			panic(err)
-		}
-	}()
 	collection := client.Database("todoApp").Collection("todoItems")
+	defer cleanUp()
+
 	collection.InsertOne(ctx, item)
 }
